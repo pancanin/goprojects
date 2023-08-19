@@ -12,8 +12,6 @@ import (
 	"io"
 	"math/rand"
 	"os"
-	"strconv"
-	"strings"
 	"time"
 )
 
@@ -23,8 +21,9 @@ type problem struct {
 }
 
 type flags struct {
-	filePath string
-	shuffle  bool
+	filePath  string
+	shuffle   bool
+	timeLimit int
 }
 
 // Column count of a valid csv problem row record
@@ -39,18 +38,14 @@ func printErrorAndExit(msg string) {
 // Flag messages and default values are set here.
 func ReadProgramFlags() flags {
 	filePath := flag.String("csv", "problems.csv", "a csv file in the format 'question,answer'")
-	shuffle := flag.String("shuffle", "0", "Whether to shuffle the questions. 1 for yes, 0 for no.")
+	shuffle := flag.Bool("shuffle", false, "Whether to shuffle the questions.")
+	timeLimit := flag.Int("timeLimit", 30, "This is the time in seconds that the user has to answer the whole quiz.")
 	flag.Parse()
 
-	shuffleBoolValue, err := strconv.ParseBool(*shuffle)
-
-	if err != nil {
-		printErrorAndExit("Could not parse boolean value for 'shuffle' flag")
-	}
-
 	return flags{
-		filePath: *filePath,
-		shuffle:  shuffleBoolValue,
+		filePath:  *filePath,
+		shuffle:   *shuffle,
+		timeLimit: *timeLimit,
 	}
 }
 
@@ -113,25 +108,6 @@ func ConvertRowsToProblems(rows [][]string) []problem {
 	return problems
 }
 
-// Compares the original answer to the one provided by the user.
-// prob is the original question and answer
-// r is the reader from which user input is read
-// If there is a problem with reading user input or the answer does not match the actual answer, return false.
-func CheckAnswer(prob *problem, r io.Reader) bool {
-	var userAnswer string
-	scanner := bufio.NewScanner(r)
-	if scanner.Scan() {
-		userAnswer = scanner.Text()
-	}
-
-	if scanner.Err() != nil {
-		fmt.Printf("Sorry, we couldn't understand your answer. We will consider it wrong, just in case :D")
-		return false
-	}
-
-	return strings.TrimSpace(userAnswer) == prob.a
-}
-
 func GetProblemPromptMsg(problemNum int, question string) string {
 	return fmt.Sprintf("Problem #%d: %s?\n", problemNum, question)
 }
@@ -161,12 +137,30 @@ func main() {
 		shuffleProblems(problems)
 	}
 
+	timer := time.NewTimer(time.Duration(flags.timeLimit) * time.Second)
+
 	// Handle answers
 	correctAnswers := 0
+	problemloop:
 	for i, problem := range problems {
 		fmt.Print(GetProblemPromptMsg(i+1, problem.q))
-		if CheckAnswer(&problem, os.Stdin) {
-			correctAnswers++
+		answerCh := make(chan string)
+		go func() {
+			var userAnswer string
+			scanner := bufio.NewScanner(os.Stdin)
+			if scanner.Scan() {
+				userAnswer = scanner.Text()
+			}
+			answerCh <- userAnswer
+		}()
+		select {
+		case <-timer.C:
+			fmt.Println()
+			break problemloop
+		case answer := <-answerCh:
+			if answer == problem.a {
+				correctAnswers++
+			}
 		}
 	}
 

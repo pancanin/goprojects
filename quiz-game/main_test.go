@@ -76,30 +76,3 @@ func TestValidateCSVRows_InvalidCSVFormat(t *testing.T) {
 		t.Fatalf("CSV should have been considered invalid.")
 	}
 }
-
-func TestCheckAnswer(t *testing.T) {
-	prob := problem{q: "1+1", a: "2"}
-	strReader := strings.NewReader("2\n") // works without the newline too.
-
-	if !CheckAnswer(&prob, strReader) {
-		t.Fatal("The answer was considered wrong, but is correct")
-	}
-}
-
-func TestCheckAnswer_AnswerWithSpaces(t *testing.T) {
-	prob := problem{q: "1+1", a: "2"}
-	strReader := strings.NewReader("    2       \n") // This answer has leading and trailing spaces.
-
-	if !CheckAnswer(&prob, strReader) {
-		t.Fatal("The answer was considered wrong, but is correct")
-	}
-}
-
-func TestCheckAnswer_IncorrectAnswer(t *testing.T) {
-	prob := problem{q: "1+1", a: "2"}
-	strReader := strings.NewReader("3") // an empty input is incorrect too.
-
-	if CheckAnswer(&prob, strReader) {
-		t.Fatal("The answer was considered correct, but was wrong")
-	}
-}
