@@ -10,37 +10,58 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"math/rand"
 	"os"
+	"strconv"
+	"strings"
+	"time"
 )
 
 type problem struct {
-	q string
-	a string
+	q string // question
+	a string // answer
 }
 
 type flags struct {
 	filePath string
+	shuffle  bool
+}
+
+// Column count of a valid csv problem row record
+const COLUMN_COUNT = 2
+
+func printErrorAndExit(msg string) {
+	fmt.Fprintln(os.Stderr, msg)
+	os.Exit(1)
 }
 
 // Reads program's flags and populates a DS with their values.
 // Flag messages and default values are set here.
 func ReadProgramFlags() flags {
 	filePath := flag.String("csv", "problems.csv", "a csv file in the format 'question,answer'")
+	shuffle := flag.String("shuffle", "0", "Whether to shuffle the questions. 1 for yes, 0 for no.")
 	flag.Parse()
+
+	shuffleBoolValue, err := strconv.ParseBool(*shuffle)
+
+	if err != nil {
+		printErrorAndExit("Could not parse boolean value for 'shuffle' flag")
+	}
 
 	return flags{
 		filePath: *filePath,
+		shuffle:  shuffleBoolValue,
 	}
 }
 
 // Opens a file located at the specified path.
 // If there is an error, on opening the file, a message is printed and the program exits.
+// Thoughts: Usually, I won't write this method, because it is a thin wrapper around os.Open with no added value.
 func OpenFile(path string) *os.File {
 	file, err := os.Open(path)
 
 	if err != nil {
-		fmt.Printf("Failed to open the CSV file: %s\n", path)
-		os.Exit(1)
+		printErrorAndExit(fmt.Sprintf("Failed to open the CSV file: %s\n", path))
 	}
 
 	return file
@@ -55,8 +76,7 @@ func ReadCSVFile(file io.Reader) [][]string {
 	lines, err := csvReader.ReadAll()
 
 	if err != nil {
-		fmt.Println("Failed to parse the provided CSV file.")
-		os.Exit(1)
+		printErrorAndExit("Failed to parse the provided CSV file.")
 	}
 
 	return lines
@@ -74,7 +94,7 @@ func ConvertRowToProblem(row []string) problem {
 // If the row has two columns, we consider it valid.
 func ValidateCSVRows(rows [][]string) bool {
 	for _, row := range rows {
-		if len(row) != 2 {
+		if len(row) != COLUMN_COUNT {
 			return false
 		}
 	}
@@ -86,19 +106,18 @@ func ValidateCSVRows(rows [][]string) bool {
 func ConvertRowsToProblems(rows [][]string) []problem {
 	problems := make([]problem, len(rows))
 
-	for i, line := range rows {
-		problems[i] = ConvertRowToProblem(line)
+	for i, row := range rows {
+		problems[i] = ConvertRowToProblem(row)
 	}
 
 	return problems
 }
 
 // Compares the original answer to the one provided by the user.
-// probNum is the display number of the problem
 // prob is the original question and answer
 // r is the reader from which user input is read
 // If there is a problem with reading user input or the answer does not match the actual answer, return false.
-func CheckAnswer(probNum int, prob *problem, r io.Reader) bool {
+func CheckAnswer(prob *problem, r io.Reader) bool {
 	var userAnswer string
 	scanner := bufio.NewScanner(r)
 	if scanner.Scan() {
@@ -106,19 +125,25 @@ func CheckAnswer(probNum int, prob *problem, r io.Reader) bool {
 	}
 
 	if scanner.Err() != nil {
-		fmt.Printf("Sorry, we couldn't understand your answer")
+		fmt.Printf("Sorry, we couldn't understand your answer. We will consider it wrong, just in case :D")
 		return false
 	}
 
-	return userAnswer == prob.a
+	return strings.TrimSpace(userAnswer) == prob.a
 }
 
-func GetProblemPrompt(problemNum int, question string) string {
+func GetProblemPromptMsg(problemNum int, question string) string {
 	return fmt.Sprintf("Problem #%d: %s?\n", problemNum, question)
 }
 
-func GetResultMessage(correctAnswers int, questionCount int) string {
+func GetResultMsg(correctAnswers int, questionCount int) string {
 	return fmt.Sprintf("You got %d out of %d correctly!\n", correctAnswers, questionCount)
+}
+
+// This slice is passed by reference because we are shuffling it inplace and the result is visible from the outside scope.
+func shuffleProblems(arr []problem) {
+	rand.Seed(time.Now().Unix())
+	rand.Shuffle(len(arr), func(i, j int) { arr[i], arr[j] = arr[j], arr[i] })
 }
 
 func main() {
@@ -126,22 +151,24 @@ func main() {
 	file := OpenFile(flags.filePath)
 	csvRows := ReadCSVFile(file)
 
-	if ValidateCSVRows(csvRows) {
-		fmt.Println("Invalid csv format")
-		os.Exit(1)
+	if !ValidateCSVRows(csvRows) {
+		printErrorAndExit("Invalid csv format")
 	}
 
 	problems := ConvertRowsToProblems(csvRows)
 
+	if flags.shuffle {
+		shuffleProblems(problems)
+	}
+
 	// Handle answers
 	correctAnswers := 0
 	for i, problem := range problems {
-		problemNum := i + 1
-		fmt.Print(GetProblemPrompt(problemNum, problem.q))
-		if CheckAnswer(problemNum, &problem, os.Stdin) {
+		fmt.Print(GetProblemPromptMsg(i+1, problem.q))
+		if CheckAnswer(&problem, os.Stdin) {
 			correctAnswers++
 		}
 	}
 
-	fmt.Print(GetResultMessage(correctAnswers, len(problems)))
+	fmt.Print(GetResultMsg(correctAnswers, len(problems)))
 }
