@@ -154,10 +154,10 @@ func main() {
 			answerCh <- userAnswer
 		}()
 		select {
-		case <-timer.C:
+		case <-timer.C: // Time is up!
 			fmt.Println()
 			break problemloop
-		case answer := <-answerCh:
+		case answer := <-answerCh: // The user answered!
 			if answer == problem.a {
 				correctAnswers++
 			}
