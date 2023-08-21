@@ -54,6 +54,7 @@ func YAMLHandler(yml []byte, fallback http.Handler) (http.HandlerFunc, error) {
 	return MapHandler(helpers.CreateUrlToPathMap(pathUrls), fallback), nil
 }
 
+// Similar to the above for YAML but for JSON
 func JSONHandler(jsonStr []byte, fallback http.Handler) (http.HandlerFunc, error) {
 	var pathUrls []helpers.PathUrl
 	err := json.Unmarshal(jsonStr, &pathUrls)

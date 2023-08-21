@@ -26,16 +26,17 @@ func main() {
 	
 	yamlHandler, err := urlshort.YAMLHandler(yamlFileContent, mapHandler)
 	if err != nil {
-		panic(err)
+		fmt.Fprintf(os.Stderr, "There was a problem with reading yaml contents: %s", err.Error())
+		os.Exit(1)
 	}
 
 	jsonFileName := flag.String("json", "urls.json", "path to json formatted plain-text file")
 	jsonFileContent := readFileContents(*jsonFileName)
-
 	jsonHandler, err := urlshort.JSONHandler(jsonFileContent, yamlHandler)
 
 	if err != nil {
-		panic(err)
+		fmt.Fprintf(os.Stderr, "There was a problem with reading json contents: %s", err.Error())
+		os.Exit(1)
 	}
 
 	fmt.Println("Starting the server on :8080")
