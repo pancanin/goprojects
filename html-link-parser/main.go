@@ -17,7 +17,7 @@ import (
 
 func main() {
 	// 1. Get a root url from a flag
-	url := flag.String("url", "https://example.com", "the home url of the website for which sitemap will be generated.")
+	url := flag.String("url", "https://www.calhoun.io/", "the url which will be the root of the sitemap.")
 	flag.Parse()
 
 	if *url == "" {
@@ -25,40 +25,98 @@ func main() {
 		os.Exit(1)
 	}
 
-	// 2. Visit the page and find all links in it, then visit the links and do the same
-	resp, err := http.Get(*url)
+	// The root URL might not end on '/', but for starters we will assume that it is always the 'home' page.
+	rootUrl := strings.TrimSuffix(*url, "/")
+	// Define a queue of strings
+	urls := make([]string, 0)
+	// add the home page of the site to the queue
+	urls = enqueue(urls, "/")
+	visited := make(map[string]bool, 0)
+	
+	// until the queue is empty start a loop
+	for len(urls) > 0 {
+		currentUrl := top(urls)
+		urls = pop(urls)
+		
+		// Prepare the url for querying
+		// TODO Create a method for this part and add unit tests
+		// Remove the domain
+		currentUrl = strings.TrimPrefix(currentUrl, rootUrl)
+		// Remove the ending forward slash
+		currentUrl = strings.TrimSuffix(currentUrl, "/")
 
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "There was an error requesting resource at %s. Error: %s", *url, err.Error())
-		os.Exit(1)
-	}
-	defer resp.Body.Close()
-	links, err := linkspider.Parse(resp.Body)
+		// Map different variants of the home url to a single form
+		if currentUrl == "#" || currentUrl == "" {
+			currentUrl = "/"
+		}
 
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "There was an error parsing html file from %s. Error: %s", *url, err.Error())
-		os.Exit(1)
-	}
+		if _, ok := visited[currentUrl]; ok {
+			continue
+		}
+		visited[currentUrl] = true
 
-	// Filter just the same domain links
-	var sameDomainLinks []linkspider.Link
+		// Instead, we should have a map from urls to child links
+		fmt.Println(currentUrl)
 
-	for _, link := range links {
-		if strings.HasPrefix(link.Href, "/") || strings.HasPrefix(link.Href, *url) {
-			sameDomainLinks = append(sameDomainLinks, link)
+		// The url is ready for querying
+		fullUrl := rootUrl + currentUrl
+		resp, err := http.Get(fullUrl)
+
+		if err != nil {
+			fmt.Println("Could not get page from " + currentUrl)
+			continue
+		}
+		defer resp.Body.Close()
+		links, err := linkspider.Parse(resp.Body)
+
+		if err != nil {
+			fmt.Println("Could not get links from web page")
+			continue
+		}
+
+		// Filter just the same domain links
+		var sameDomainLinks []linkspider.Link
+
+		for _, link := range links {
+			if strings.HasPrefix(link.Href, "/") || strings.HasPrefix(link.Href, *url) {
+				sameDomainLinks = append(sameDomainLinks, link)
+			}
+		}
+
+		// Print the links at the current page
+		for i, link := range sameDomainLinks {
+			fmt.Printf("Found link with address %s and text %s\n", link.Href, link.Text)
+			sameDomainLinks[i].Href = strings.TrimPrefix(link.Href, rootUrl)
+			sameDomainLinks[i].Href = strings.TrimSuffix(link.Href, "/")
+
+			if link.Href == "#" || link.Href == "" {
+				sameDomainLinks[i].Href = "/"
+			}
+
+			if _, ok := visited[link.Href]; !ok {
+				urls = enqueue(urls, link.Href)
+			}
 		}
 	}
-
-	// Print the links at the current page
-	for _, link := range sameDomainLinks {
-		fmt.Printf("Found link with address %s and text %s\n", link.Href, link.Text)
-	}
-
-	// 3. While doing this create a tree-like structure with the path which we traced along the way.
-
-	// 4. Check for already visited links, maybe a set/map of the visited pages is a good idea.
-
-	// Notes: Visit only links from the same domain
-
-	// struct Page { url: "the url of the page", children []Page }
 }
+
+type Page struct {
+	Url string
+	Children []*Page
+}
+
+func enqueue(queue []string, item string) []string {
+	return append(queue, item)
+}
+
+func top(queue []string) string {
+	return queue[0]
+}
+
+func pop(queue []string) []string {
+	return queue[1:]
+}
+
+// TODO: Look at the identifiers around your code and improve them.
+// TODO: Reduce abstractions to improve readability
+// Use 'internal' directory if we dont want to share an implementation with the outside world
