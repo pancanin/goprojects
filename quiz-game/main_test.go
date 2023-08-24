@@ -10,10 +10,12 @@ import (
 // Also, most of the methods I will test now, I would normally not test because they are thin wrappers around standard library methods.
 
 // Tests whether the structure of the csv file is read correctly.
-func TestReadCSVFile(t *testing.T) {
+// This tests the csv package itself so it does not make sense to have this test, but I am
+// checking how the tests work
+func TestReadCSV(t *testing.T) {
 	csvContent := "1+1,2\n2+3,5\n9+9,18"
-	csvFile := strings.NewReader(csvContent)
-	csvRows := ReadCSVFile(csvFile)
+	csv := strings.NewReader(csvContent)
+	csvRows := ReadCSV(csv)
 
 	if len(csvRows) != 3 {
 		t.Fatalf("Expected rows count %d, actual count %d", 3, len(csvRows))
@@ -47,11 +49,11 @@ func TestReadCSVFile(t *testing.T) {
 // Happy path, because we will validate the CSV before passing it to this function.
 func TestConvertRowToProblem_CorrectSliceFormat(t *testing.T) {
 	row := []string{"1+1", "2"}
-	problem := ConvertRowToProblem(row)
+	problem := MapFields(row)
 
-	if problem.q != "1+1" || problem.a != "2" {
+	if problem.question != "1+1" || problem.answer != "2" {
 		t.Fatalf("Expected value for question is %s and for answer is %s, but was %s and %s",
-			"1+1", "2", problem.q, problem.a)
+			"1+1", "2", problem.question, problem.answer)
 	}
 }
 
@@ -61,7 +63,7 @@ func TestValidateCSVRows_ValidCSVFormat(t *testing.T) {
 		[]string{"2+3", "5"},
 	}
 
-	if !ValidateCSVRows(rows) {
+	if !ValidateColumnCount(rows, 2) {
 		t.Fatalf("CSV should have been considered valid.")
 	}
 }
@@ -72,7 +74,7 @@ func TestValidateCSVRows_InvalidCSVFormat(t *testing.T) {
 		[]string{"2+3"},
 	}
 
-	if ValidateCSVRows(rows) {
+	if ValidateColumnCount(rows, 2) {
 		t.Fatalf("CSV should have been considered invalid.")
 	}
 }

@@ -1,7 +1,6 @@
 // Implements the quiz game entirely.
 // For simplicity, all functions are exported, so they can be easily tested.
-// A more correct approach would be to have a separate package for related functionality and have tests for it.
-// But here we will test everything together.
+// It is a small program for the purposes of learning Go's idioms, syntax and standard library.
 package main
 
 import (
@@ -15,48 +14,98 @@ import (
 	"time"
 )
 
+func main() {
+	flags := readProgramFlags()
+	file := openFile(flags.csvPath)
+	csvRows := ReadCSV(file)
+
+	if !ValidateColumnCount(csvRows, 2) {
+		exit("Invalid csv format.")
+	}
+
+	problems := ConvertRowsToProblems(csvRows)
+
+	if flags.shuffle {
+		shuffle(problems)
+	}
+
+	timer := time.NewTimer(time.Duration(flags.time) * time.Second)
+
+	// Handle user answers
+	correct := 0
+problemloop:
+	for i, problem := range problems {
+		fmt.Printf("Problem #%d: %s?\n", i+1, problem.question)
+		answer := make(chan string)
+
+		// get input async and await on a channel
+		go func() {
+			var txt string
+			scanner := bufio.NewScanner(os.Stdin)
+			if scanner.Scan() {
+				txt = scanner.Text()
+			}
+			answer <- txt
+		}()
+		select {
+		case <-timer.C: // Time is up!
+			fmt.Println()
+			break problemloop
+		case answer := <-answer: // The user answered!
+			if answer == problem.answer {
+				correct++
+			}
+		}
+	}
+
+	fmt.Printf("You got %d out of %d correctly!\n", correct, len(problems))
+}
+
 type problem struct {
-	q string // question
-	a string // answer
+	question string
+	answer   string
 }
 
-type flags struct {
-	filePath  string
-	shuffle   bool
-	timeLimit int
+type quizFlags struct {
+	csvPath string
+	shuffle bool
+	// Time limit for the whole quiz
+	time int
 }
 
-// Column count of a valid csv problem row record
-const COLUMN_COUNT = 2
+func exitErr(msg string, err error) {
+	fmt.Fprintln(os.Stderr, fmt.Sprintf("%s. Original error: %s", msg, err.Error()))
+	os.Exit(1)
+}
 
-func printErrorAndExit(msg string) {
+func exit(msg string) {
 	fmt.Fprintln(os.Stderr, msg)
 	os.Exit(1)
 }
 
-// Reads program's flags and populates a DS with their values.
-// Flag messages and default values are set here.
-func ReadProgramFlags() flags {
-	filePath := flag.String("csv", "problems.csv", "a csv file in the format 'question,answer'")
+// Reads program's flags and populates an object.
+// CLI flag messages and default values are set here.
+func readProgramFlags() quizFlags {
+	csvPath := flag.String("csv", "problems.csv", "Path to a csv file in the format 'question,answer'.")
 	shuffle := flag.Bool("shuffle", false, "Whether to shuffle the questions.")
-	timeLimit := flag.Int("timeLimit", 30, "This is the time in seconds that the user has to answer the whole quiz.")
+	time := flag.Int("timeLimit", 30, "In Seconds, for the whole quiz.")
 	flag.Parse()
 
-	return flags{
-		filePath:  *filePath,
-		shuffle:   *shuffle,
-		timeLimit: *timeLimit,
+	return quizFlags{
+		csvPath: *csvPath,
+		shuffle: *shuffle,
+		time:    *time,
 	}
 }
 
 // Opens a file located at the specified path.
 // If there is an error, on opening the file, a message is printed and the program exits.
 // Thoughts: Usually, I won't write this method, because it is a thin wrapper around os.Open with no added value.
-func OpenFile(path string) *os.File {
+func openFile(path string) *os.File {
 	file, err := os.Open(path)
 
 	if err != nil {
-		printErrorAndExit(fmt.Sprintf("Failed to open the CSV file: %s\n", path))
+		exitErr(fmt.Sprintf("Failed to open the CSV file: %s\n", path), err)
 	}
 
 	return file
@@ -64,32 +113,33 @@ func OpenFile(path string) *os.File {
 
 // Reads a csv formatted buffer into a 2D slice of strings.
 // The rows in the slice represent the rows in the csv and the columns of the slice represent the columns of the csv.
-// If the csv file is malformed a message is printed and the program exits.
-func ReadCSVFile(file io.Reader) [][]string {
-	csvReader := csv.NewReader(file)
-
-	lines, err := csvReader.ReadAll()
+// If the csv data is malformed, a message is printed and the program exits.
+// Calling this method creates an extra copy of the 2D slice, but the questions won't be that many.
+// This method improves readability, which is more important than the supposed negative performance impact.
+func ReadCSV(r io.Reader) [][]string {
+	csv := csv.NewReader(r)
+	rows, err := csv.ReadAll()
 
 	if err != nil {
-		printErrorAndExit("Failed to parse the provided CSV file.")
+		exitErr("Failed to read CSV data.", err)
 	}
 
-	return lines
+	return rows
 }
 
 // Does a mapping between a slice's elements and a problem.
 // The slice's elements are an ordered set of the problem's fields as they appear in the problem struct.
-func ConvertRowToProblem(row []string) problem {
+func MapFields(fields []string) problem {
 	return problem{
-		q: row[0],
-		a: row[1],
+		question: fields[0],
+		answer:   fields[1],
 	}
 }
 
 // If the row has two columns, we consider it valid.
-func ValidateCSVRows(rows [][]string) bool {
-	for _, row := range rows {
-		if len(row) != COLUMN_COUNT {
+func ValidateColumnCount(rows [][]string, count int) bool {
+	for _, r := range rows {
+		if len(r) != count {
 			return false
 		}
 	}
@@ -97,72 +147,19 @@ func ValidateCSVRows(rows [][]string) bool {
 	return true
 }
 
-// A wrapper around convertLineToProblem for handling 2D slice to slice of problems mapping.
+// Each row is mapped to a problem object
 func ConvertRowsToProblems(rows [][]string) []problem {
-	problems := make([]problem, len(rows))
+	p := make([]problem, len(rows))
 
-	for i, row := range rows {
-		problems[i] = ConvertRowToProblem(row)
+	for i, r := range rows {
+		p[i] = MapFields(r)
 	}
 
-	return problems
-}
-
-func GetProblemPromptMsg(problemNum int, question string) string {
-	return fmt.Sprintf("Problem #%d: %s?\n", problemNum, question)
-}
-
-func GetResultMsg(correctAnswers int, questionCount int) string {
-	return fmt.Sprintf("You got %d out of %d correctly!\n", correctAnswers, questionCount)
+	return p
 }
 
 // This slice is passed by reference because we are shuffling it inplace and the result is visible from the outside scope.
-func shuffleProblems(arr []problem) {
+func shuffle(p []problem) {
 	rand.Seed(time.Now().Unix())
-	rand.Shuffle(len(arr), func(i, j int) { arr[i], arr[j] = arr[j], arr[i] })
-}
-
-func main() {
-	flags := ReadProgramFlags()
-	file := OpenFile(flags.filePath)
-	csvRows := ReadCSVFile(file)
-
-	if !ValidateCSVRows(csvRows) {
-		printErrorAndExit("Invalid csv format")
-	}
-
-	problems := ConvertRowsToProblems(csvRows)
-
-	if flags.shuffle {
-		shuffleProblems(problems)
-	}
-
-	timer := time.NewTimer(time.Duration(flags.timeLimit) * time.Second)
-
-	// Handle answers
-	correctAnswers := 0
-	problemloop:
-	for i, problem := range problems {
-		fmt.Print(GetProblemPromptMsg(i+1, problem.q))
-		answerCh := make(chan string)
-		go func() {
-			var userAnswer string
-			scanner := bufio.NewScanner(os.Stdin)
-			if scanner.Scan() {
-				userAnswer = scanner.Text()
-			}
-			answerCh <- userAnswer
-		}()
-		select {
-		case <-timer.C: // Time is up!
-			fmt.Println()
-			break problemloop
-		case answer := <-answerCh: // The user answered!
-			if answer == problem.a {
-				correctAnswers++
-			}
-		}
-	}
-
-	fmt.Print(GetResultMsg(correctAnswers, len(problems)))
+	rand.Shuffle(len(p), func(i, j int) { p[i], p[j] = p[j], p[i] })
 }
