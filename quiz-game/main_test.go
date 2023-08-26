@@ -1,6 +1,7 @@
 package main
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -13,6 +14,28 @@ import (
 // This tests the csv package itself so it does not make sense to have this test, but I am
 // checking how the tests work
 func TestReadCSV(t *testing.T) {
+	tests := map[string]struct {
+		input string
+		want [][]string
+	} {
+		"single line csv": {input: "1+1,2", want: [][]string{[]string{"1+1", "2"}}},
+		"multiline csv": {
+			input: "1+1,2\n2+3,5\n9+9,18",
+			want: [][]string{[]string{"1+1", "2"}, []string{"2+3", "5"}, []string{"9+9", "18"}},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			csv := strings.NewReader(tc.input)
+			csvRows := ReadCSV(csv)
+
+			if !reflect.DeepEqual(tc.want, csvRows) {
+				t.Fatalf("expected %v, got: %v", tc.want, csvRows)
+			}
+		})
+	}
+
 	csvContent := "1+1,2\n2+3,5\n9+9,18"
 	csv := strings.NewReader(csvContent)
 	csvRows := ReadCSV(csv)

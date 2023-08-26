@@ -20,3 +20,8 @@ func TestCreateUrlToPathMap(t *testing.T) {
 
 	// A few similar assertions
 }
+
+// Write some table-driven tests. We can have the name of the test in the struct which is a row in the table.
+// Try with subtests too
+// check about go 2 error handling 
+// as a whole, check the Go 2 draft
