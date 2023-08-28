@@ -1,12 +1,13 @@
-package urlshort
+package handler
 
 import (
 	"net/http"
 
-	"gopkg.in/yaml.v2"
 	"encoding/json"
 
-	"example.com/urlshortener/helpers"
+	"gopkg.in/yaml.v2"
+
+	"example.com/urlshortener/link"
 )
 
 // MapHandler will return an http.HandlerFunc (which also
@@ -17,10 +18,8 @@ import (
 // http.Handler will be called instead.
 func MapHandler(pathsToUrls map[string]string, fallback http.Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
-		path := req.URL.Path
-
-		if redirectUrl, ok := pathsToUrls[path]; ok {
-			http.Redirect(w, req, redirectUrl, http.StatusFound)
+		if url, ok := pathsToUrls[req.URL.Path]; ok {
+			http.Redirect(w, req, url, http.StatusFound)
 			return
 		}
 		fallback.ServeHTTP(w, req)
@@ -44,24 +43,24 @@ func MapHandler(pathsToUrls map[string]string, fallback http.Handler) http.Handl
 // See MapHandler to create a similar http.HandlerFunc via
 // a mapping of paths to urls.
 func YAMLHandler(yml []byte, fallback http.Handler) (http.HandlerFunc, error) {
-	var pathUrls []helpers.PathUrl
+	var pathUrls []link.Link
 	err := yaml.Unmarshal(yml, &pathUrls)
 
 	if err != nil {
 		return nil, err
 	}
 
-	return MapHandler(helpers.CreateUrlToPathMap(pathUrls), fallback), nil
+	return MapHandler(link.TransformLinksToMap(pathUrls), fallback), nil
 }
 
 // Similar to the above for YAML but for JSON
 func JSONHandler(jsonStr []byte, fallback http.Handler) (http.HandlerFunc, error) {
-	var pathUrls []helpers.PathUrl
+	var pathUrls []link.Link
 	err := json.Unmarshal(jsonStr, &pathUrls)
 
 	if err != nil {
 		return nil, err
 	}
 
-	return MapHandler(helpers.CreateUrlToPathMap(pathUrls), fallback), nil
+	return MapHandler(link.TransformLinksToMap(pathUrls), fallback), nil
 }
