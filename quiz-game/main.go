@@ -61,7 +61,7 @@ problemloop:
 	fmt.Printf("You got %d out of %d correctly!\n", correct, len(problems))
 }
 
-type problem struct {
+type Problem struct {
 	question string
 	answer   string
 }
@@ -129,8 +129,8 @@ func ReadCSV(r io.Reader) [][]string {
 
 // Does a mapping between a slice's elements and a problem.
 // The slice's elements are an ordered set of the problem's fields as they appear in the problem struct.
-func MapFields(fields []string) problem {
-	return problem{
+func MapFields(fields []string) Problem {
+	return Problem{
 		question: fields[0],
 		answer:   fields[1],
 	}
@@ -148,8 +148,8 @@ func ValidateColumnCount(rows [][]string, count int) bool {
 }
 
 // Each row is mapped to a problem object
-func ConvertRowsToProblems(rows [][]string) []problem {
-	p := make([]problem, len(rows))
+func ConvertRowsToProblems(rows [][]string) []Problem {
+	p := make([]Problem, len(rows))
 
 	for i, r := range rows {
 		p[i] = MapFields(r)
@@ -159,7 +159,7 @@ func ConvertRowsToProblems(rows [][]string) []problem {
 }
 
 // This slice is passed by reference because we are shuffling it inplace and the result is visible from the outside scope.
-func shuffle(p []problem) {
+func shuffle(p []Problem) {
 	rand.Seed(time.Now().Unix())
 	rand.Shuffle(len(p), func(i, j int) { p[i], p[j] = p[j], p[i] })
 }

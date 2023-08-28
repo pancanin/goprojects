@@ -6,22 +6,22 @@ import (
 	"testing"
 )
 
-// The tests in this suite can be heavily refactored, but this is a first attempt at testing.
-// Just getting the vanilla feel of it.
-// Also, most of the methods I will test now, I would normally not test because they are thin wrappers around standard library methods.
-
 // Tests whether the structure of the csv file is read correctly.
-// This tests the csv package itself so it does not make sense to have this test, but I am
-// checking how the tests work
+// This tests the csv package itself so it does not make sense to have this test.
+// This is just explorational testing.
 func TestReadCSV(t *testing.T) {
 	tests := map[string]struct {
 		input string
-		want [][]string
-	} {
-		"single line csv": {input: "1+1,2", want: [][]string{[]string{"1+1", "2"}}},
+		want  [][]string
+		err   bool
+	}{
+		"single line csv": {
+			input: "1+1,2",
+			want:  [][]string{[]string{"1+1", "2"}},
+		},
 		"multiline csv": {
 			input: "1+1,2\n2+3,5\n9+9,18",
-			want: [][]string{[]string{"1+1", "2"}, []string{"2+3", "5"}, []string{"9+9", "18"}},
+			want:  [][]string{[]string{"1+1", "2"}, []string{"2+3", "5"}, []string{"9+9", "18"}},
 		},
 	}
 
@@ -35,69 +35,63 @@ func TestReadCSV(t *testing.T) {
 			}
 		})
 	}
-
-	csvContent := "1+1,2\n2+3,5\n9+9,18"
-	csv := strings.NewReader(csvContent)
-	csvRows := ReadCSV(csv)
-
-	if len(csvRows) != 3 {
-		t.Fatalf("Expected rows count %d, actual count %d", 3, len(csvRows))
-	}
-
-	if csvRows[0][0] != "1+1" {
-		t.Fatalf("Expected first question to be %s, but was %s", "1+1", csvRows[0][0])
-	}
-
-	if csvRows[0][1] != "2" {
-		t.Fatalf("Expected first question's answer to be %s, but was %s", "2", csvRows[0][1])
-	}
-
-	if csvRows[1][0] != "2+3" {
-		t.Fatalf("Expected second question to be %s, but was %s", "2+3", csvRows[1][0])
-	}
-
-	if csvRows[1][1] != "5" {
-		t.Fatalf("Expected second question's answer to be %s, but was %s", "5", csvRows[1][1])
-	}
-
-	if csvRows[2][0] != "9+9" {
-		t.Fatalf("Expected third question to be %s, but was %s", "9+9", csvRows[2][0])
-	}
-
-	if csvRows[2][1] != "18" {
-		t.Fatalf("Expected third question's answer to be %s, but was %s", "18", csvRows[2][1])
-	}
 }
 
 // Happy path, because we will validate the CSV before passing it to this function.
 func TestConvertRowToProblem_CorrectSliceFormat(t *testing.T) {
-	row := []string{"1+1", "2"}
-	problem := MapFields(row)
+	tests := map[string]struct {
+		input []string
+		want  Problem
+	}{
+		"simple": {
+			input: []string{"1+1", "2"},
+			want:  Problem{question: "1+1", answer: "2"},
+		},
+		"empty value for answer": {
+			input: []string{"1+2", ""},
+			want:  Problem{question: "1+2", answer: ""},
+		},
+		"empty value for question": {
+			input: []string{"", "3"},
+			want:  Problem{question: "", answer: "3"},
+		},
+	}
 
-	if problem.question != "1+1" || problem.answer != "2" {
-		t.Fatalf("Expected value for question is %s and for answer is %s, but was %s and %s",
-			"1+1", "2", problem.question, problem.answer)
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			p := MapFields(tc.input)
+			if !reflect.DeepEqual(tc.want, p) {
+				t.Fatalf("expected: %v, got: %v", tc.want, p)
+			}
+		})
 	}
 }
 
-func TestValidateCSVRows_ValidCSVFormat(t *testing.T) {
-	rows := [][]string{
-		[]string{"1+1", "2"},
-		[]string{"2+3", "5"},
-	}
+func TestValidateCSVRows(t *testing.T) {
+	tests := map[string]struct {
+		input [][]string
+		want  bool
+	}{
+		"simple": {input: [][]string{
+			[]string{"1+1", "2"},
+			[]string{"2+3", "5"},
+		},
+			want: true,
+		},
+		"invalid": {
+			input: [][]string{
+				[]string{"1+1", "2"},
+				[]string{"2+3"},
+			},
+			want: false,
+		}}
 
-	if !ValidateColumnCount(rows, 2) {
-		t.Fatalf("CSV should have been considered valid.")
-	}
-}
-
-func TestValidateCSVRows_InvalidCSVFormat(t *testing.T) {
-	rows := [][]string{
-		[]string{"1+1", "2"},
-		[]string{"2+3"},
-	}
-
-	if ValidateColumnCount(rows, 2) {
-		t.Fatalf("CSV should have been considered invalid.")
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			valid := ValidateColumnCount(tc.input, 2)
+			if tc.want != valid {
+				t.Fatalf("expected: %v, actual: %v", tc.want, valid)
+			}
+		})
 	}
 }
