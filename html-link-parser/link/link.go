@@ -1,4 +1,4 @@
-package linkspider
+package link
 
 import (
 	"io"
@@ -13,22 +13,42 @@ type Link struct {
 	Text string
 }
 
+// Unifies the format of an url to a path, relative to the root domain.
+// Removes any trailing forward slashes and maps from different urls, considered home urls to a common suffix.
+// Example: http://www.example.com/about -> /about
+// See tests for other examples.
+func (l Link) Normalize(rootDomain string) {
+	// Remove the domain
+	l.Href = strings.TrimPrefix(l.Href, rootDomain)
+	// Remove the ending forward slash
+	l.Href = strings.TrimSuffix(l.Href, "/")
+
+	// Map different variants of the home url to a single form
+	// Not sure if this is actually needed.
+	// It is a good idea to create a simple website on local host for testing purposes.
+	if l.Href == "#" || l.Href == "" {
+		l.Href = "/"
+	}
+}
+
 // Will take an HTML document and will extract all the link elements from it.
 func Parse(r io.Reader) ([]Link, error) {
 	html, err := html.Parse(r)
 	if err != nil {
-		return nil, err	
+		return nil, err
 	}
 
-	links := make([]Link, 0, 10)
-	traverseHtml(html, &links)
+	links := make([]Link, 0)
+	extractLinks(html, &links)
 
 	return links, nil
 }
 
 // Traverses the HTML DOM and collects information about links in the document.
-func traverseHtml(node * html.Node, links *[]Link) {
-	if (node.Type == html.ElementNode && node.Data == "a") {
+func extractLinks(node *html.Node, links *[]Link) {
+	if node.Type == html.ElementNode && node.Data == "a" {
+
+		// Look through the attributes for the href attribute.
 		var href string
 		for _, htmlAttr := range node.Attr {
 			if htmlAttr.Key == "href" {
@@ -45,7 +65,7 @@ func traverseHtml(node * html.Node, links *[]Link) {
 	}
 
 	for c := node.FirstChild; c != nil; c = c.NextSibling {
-		traverseHtml(c, links)
+		extractLinks(c, links)
 	}
 }
 

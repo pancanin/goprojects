@@ -1,4 +1,4 @@
-package linkspider
+package link
 
 import (
 	"strings"

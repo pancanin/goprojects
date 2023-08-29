@@ -1,4 +1,3 @@
-// Ok, I am too lazy to create separate packages for this one...I will code the sitemap builder here
 package main
 
 import (
@@ -7,12 +6,13 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"path/filepath"
 
 	// Still learning the package system
 	// So the first part 'example.com/link-spider' is the module that I init-ed.
 	// and the part after that is the folder where the package I want to import is.
-	// I butchered this project, but I will try to make it good in the next one.
-	linkspider "example.com/link-spider/link"
+	"example.com/link-spider/link"
+	"example.com/link-spider/queue"
 )
 
 var urlLinks map[string][]string
@@ -29,44 +29,46 @@ func main() {
 
 	// The root URL might not end on '/', but for starters we will assume that it is always the 'home' page.
 	rootUrl := strings.TrimSuffix(*url, "/")
-	// Define a queue of strings
-	urls := make([]string, 0)
-	// add the home page of the site to the queue
-	urls = enqueue(urls, "/")
+
+	urlsQueue := make([]string, 0)
 	visited := make(map[string]bool, 0)
 	urlLinks := make(map[string][]string, 0)
+
+	// add the home page of the site to the queue
+	urlsQueue = queue.Enqueue[string](urlsQueue, "/")
 	
 	//until the queue is empty start a loop
-	for len(urls) > 0 {
-		currentUrl := top(urls)
-		urls = pop(urls)
+	for len(urlsQueue) > 0 {
+		currentUrl := queue.Top[string](urlsQueue)
+		urlsQueue = queue.Pop[string](urlsQueue)
 
 		if _, ok := visited[currentUrl]; ok {
 			continue
 		}
 		visited[currentUrl] = true
 
-		// Instead, we should have a map from urls to child links
 		urlLinks[currentUrl] = make([]string, 0)
 
-		// The url is ready for querying
-		fullUrl := rootUrl + currentUrl
+		// The url is ready for a request
+		fullUrl := filepath.Join(rootUrl, currentUrl)
 		resp, err := http.Get(fullUrl)
 
 		if err != nil {
-			fmt.Println("Could not get page from " + currentUrl)
+			printErr("Could not GET page from " + currentUrl, err)
 			continue
 		}
 		defer resp.Body.Close()
-		links, err := linkspider.Parse(resp.Body)
+
+		// Page received. Parsing html to get the links from the page.
+		links, err := link.Parse(resp.Body)
 
 		if err != nil {
-			fmt.Println("Could not get links from web page")
+			printErr("Could not get links from web page", err)
 			continue
 		}
 
-		// Filter just the same domain links
-		var sameDomainLinks []linkspider.Link
+		// We do not need to process external links.
+		var sameDomainLinks []link.Link
 
 		for _, link := range links {
 			if strings.HasPrefix(link.Href, "/") || strings.HasPrefix(link.Href, *url) {
@@ -74,7 +76,7 @@ func main() {
 			}
 		}
 
-		// Print the links at the current page
+		// Visit the same domain links at the current page
 		for i := range sameDomainLinks {
 			// Remove the domain
 			sameDomainLinks[i].Href = strings.TrimPrefix(sameDomainLinks[i].Href, rootUrl)
@@ -86,24 +88,12 @@ func main() {
 				sameDomainLinks[i].Href = "/"
 			}
 
-			urls = enqueue(urls, sameDomainLinks[i].Href)
+			urlsQueue = queue.Enqueue[string](urlsQueue, sameDomainLinks[i].Href)
 
-			if _, ok := visited[sameDomainLinks[i].Href]; !ok {
-				urlLinks[currentUrl] = append(urlLinks[currentUrl], sameDomainLinks[i].Href)
-			}
+			urlLinks[currentUrl] = append(urlLinks[currentUrl], sameDomainLinks[i].Href)
 		}
 	}
 	
-	// Construct an html representation of the site using list items
-	// urlLinks = make(map[string][]string)
-	// urlLinks["/"] = make([]string, 0)
-	// urlLinks["/"] = append(urlLinks["/"], "/about")
-	// urlLinks["/"] = append(urlLinks["/"], "/help")
-	// urlLinks["/"] = append(urlLinks["/"], "/articles")
-	// urlLinks["/help"] = append(urlLinks["/help"], "/contacts")
-	// urlLinks["/help"] = append(urlLinks["/help"], "/misc")
-	// urlLinks["/contacts"] = append(urlLinks["/contacts"], "/logout")
-
 	var html string
 	constructHtmlList("/", &html)
 	fmt.Println(html)
@@ -112,18 +102,6 @@ func main() {
 type Page struct {
 	Url string
 	Children []*Page
-}
-
-func enqueue(queue []string, item string) []string {
-	return append(queue, item)
-}
-
-func top(queue []string) string {
-	return queue[0]
-}
-
-func pop(queue []string) []string {
-	return queue[1:]
 }
 
 // Operates on a package local variable 'urlLinks'
@@ -146,3 +124,7 @@ func constructHtmlList(url string, html *string) {
 // TODO: Look at the identifiers around your code and improve them.
 // TODO: Reduce abstractions to improve readability
 // Use 'internal' directory if we dont want to share an implementation with the outside world
+
+func printErr(msg string, err error) {
+	fmt.Fprintf(os.Stderr, "%s. Error: %s", msg, err.Error())
+}
