@@ -74,7 +74,7 @@ type quizFlags struct {
 }
 
 func exitErr(msg string, err error) {
-	fmt.Fprintln(os.Stderr, fmt.Sprintf("%s. Original error: %s", msg, err.Error()))
+	fmt.Fprintln(os.Stderr, fmt.Sprintf("%sOriginal error: %s", msg, err))
 	os.Exit(1)
 }
 

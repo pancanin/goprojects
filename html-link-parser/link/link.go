@@ -17,18 +17,21 @@ type Link struct {
 // Removes any trailing forward slashes and maps from different urls, considered home urls to a common suffix.
 // Example: http://www.example.com/about -> /about
 // See tests for other examples.
-func (l Link) Normalize(rootDomain string) {
+func (l *Link) Normalize(rootDomain string) {
 	// Remove the domain
 	l.Href = strings.TrimPrefix(l.Href, rootDomain)
-	// Remove the ending forward slash
-	l.Href = strings.TrimSuffix(l.Href, "/")
 
-	// Map different variants of the home url to a single form
-	// Not sure if this is actually needed.
-	// It is a good idea to create a simple website on local host for testing purposes.
-	if l.Href == "#" || l.Href == "" {
-		l.Href = "/"
+	// Remove the ending forward slash, if it's not a home url
+	if l.Href != "/" {
+		l.Href = strings.TrimSuffix(l.Href, "/")
 	}
+}
+
+// Whether the link is from the same domain or is an external link.
+// If the href of the link begins with '/' or the full domain name of the site, then we consider it from the same domain.
+func (l *Link) IsSameDomainLink(rootDomain string) bool {
+	return strings.HasPrefix(l.Href, "/") || strings.HasPrefix(l.Href, rootDomain) ||
+		strings.TrimSpace(l.Href) == "" || strings.TrimSpace(l.Href) == "#"
 }
 
 // Will take an HTML document and will extract all the link elements from it.

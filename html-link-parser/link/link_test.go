@@ -1,6 +1,7 @@
 package link
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -51,5 +52,81 @@ func TestTrimTextSpace(t *testing.T) {
 
 	if links[0].Text != "Hello   What is up" {
 		t.Fatalf("The actual parsed text was: %s", links[0].Text)
+	}
+}
+
+func TestLinkNormalise(t *testing.T) {
+	rootUrl := "http://www.sample.com"
+	tests := map[string]struct {
+		input Link
+		want Link
+	}{
+		"simple": {
+			input: Link{ Href: "http://www.sample.com/about", Text: "About" },
+			want: Link{Href: "/about", Text: "About"},
+		},
+		"trailing slash": {
+			input: Link{ Href: "http://www.sample.com/about/", Text: "About" },
+			want: Link{Href: "/about", Text: "About"},
+		},
+		"no root domain": {
+			input: Link{ Href: "/about", Text: "About" },
+			want: Link{Href: "/about", Text: "About"},
+		},
+		"just a slash": {
+			input: Link{ Href: "/", Text: "Home" },
+			want: Link{Href: "/", Text: "Home"},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			tc.input.Normalize(rootUrl)
+
+			if !reflect.DeepEqual(tc.input, tc.want) {
+				t.Fatalf("expected: %v, got %v", tc.want, tc.input)
+			}
+		})
+	}
+}
+
+func TestIsSameDomainLink(t *testing.T) {
+	rootDomain := "https://www.example.com/"
+	tests := map[string]struct {
+		input Link
+		want bool
+	}{
+		"root domain/home page case": {
+			want: true,
+			input: Link{Href: rootDomain, Text: "Home"},
+		},
+		"relative path": {
+			want: true,
+			input: Link{Href: "/home", Text: "Home"},
+		},
+		"nested relative path": {
+			want: true,
+			input: Link{Href: "/page/1", Text: "First Page"},
+		},
+		"external link": {
+			want: false,
+			input: Link{Href: "http://www.whoosiewhatsie.com/home", Text: "My Blog"},
+		},
+
+		// Empty or '#' href should mean 'same document', so these are same domain links too.
+		"empty href link": {
+			want: true,
+			input: Link{Href: "", Text: ""},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			isSameDomain := tc.input.IsSameDomainLink(rootDomain)
+
+			if tc.want != isSameDomain {
+				t.Fatalf("expected: %v, got: %v", tc.want, isSameDomain)
+			}
+		})
 	}
 }

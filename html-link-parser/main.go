@@ -71,22 +71,14 @@ func main() {
 		var sameDomainLinks []link.Link
 
 		for _, link := range links {
-			if strings.HasPrefix(link.Href, "/") || strings.HasPrefix(link.Href, *url) {
+			if link.IsSameDomainLink(rootUrl) {
 				sameDomainLinks = append(sameDomainLinks, link)
 			}
 		}
 
 		// Visit the same domain links at the current page
 		for i := range sameDomainLinks {
-			// Remove the domain
-			sameDomainLinks[i].Href = strings.TrimPrefix(sameDomainLinks[i].Href, rootUrl)
-			// Remove the ending forward slash
-			sameDomainLinks[i].Href = strings.TrimSuffix(sameDomainLinks[i].Href, "/")
-
-			// Map different variants of the home url to a single form
-			if sameDomainLinks[i].Href == "#" || sameDomainLinks[i].Href == "" {
-				sameDomainLinks[i].Href = "/"
-			}
+			sameDomainLinks[i].Normalize(rootUrl)
 
 			urlsQueue = queue.Enqueue[string](urlsQueue, sameDomainLinks[i].Href)
 
@@ -126,5 +118,5 @@ func constructHtmlList(url string, html *string) {
 // Use 'internal' directory if we dont want to share an implementation with the outside world
 
 func printErr(msg string, err error) {
-	fmt.Fprintf(os.Stderr, "%s. Error: %s", msg, err.Error())
+	fmt.Fprintf(os.Stderr, "%s. Error: %s", msg, err)
 }
