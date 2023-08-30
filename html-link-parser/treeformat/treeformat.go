@@ -15,18 +15,25 @@ type Tree struct {
 	s string
 }
 
-// Constructs Html unordered list from a map of relations.
-// node parameter specifies the root element for the list construction.
 func (t *Tree) ConstructHtmlList(node string) {
 	t.s += "<ul>"
+	t.constructHtmlList(node)
+	t.s += "</ul>"
+}
+
+// Constructs Html unordered list from a map of relations.
+// node parameter specifies the root element for the list construction.
+func (t *Tree) constructHtmlList(node string) {
 	t.s += "<li>" + node
 
 	if _, ok := t.relations[node]; ok && len(t.relations[node]) > 0 {
 		// there are children
+		t.s += "<ul>"
 		for _, link := range t.relations[node] {
-			t.ConstructHtmlList(link)
+			t.constructHtmlList(link)
 		}
 		t.s += "</ul>"
+		t.s += "</li>"
 	} else {
 		t.s += "</li>"
 	}

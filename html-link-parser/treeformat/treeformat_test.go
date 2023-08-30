@@ -16,6 +16,13 @@ func TestConstructHtmlList(t *testing.T) {
 			},
 			want: "<ul><li>/<ul><li>/articles</li><li>/about</li><li>/contacts</li></ul></li></ul>",
 		},
+		"nested list": {
+			input: map[string][]string{
+				"/": {"/articles", "/blog", "/about"},
+				"/about": {"/testimonials", "/pricing"},
+			},
+			want: "<ul><li>/<ul><li>/articles</li><li>/blog</li><li>/about<ul><li>/testimonials</li><li>/pricing</li></ul></li></ul></li></ul>",
+		},
 	}
 
 	for name, tc := range tests {
