@@ -7,34 +7,43 @@ package treeformat
 // It is recommended to use one object per conversion to avoid errors.
 type Tree struct {
 	// Represents a parent-child relationship between the key and a slice of values.
-	// TODO: Make the types more generic in the future.
-	relations map[string][]string
+	// The client has to set this field before calling methods on this object.
+	Relations map[string][]string
 
 	// The string representation of the tree of relations.
 	// For example, if we convert the tree to an html list items heirarchy, this will hold the html string.
-	s string
+	S string
+
+	// If we already visited a link we might list it as a child, but will not recurse in it.
+	visited map[string]bool
 }
 
 func (t *Tree) ConstructHtmlList(node string) {
-	t.s += "<ul>"
+	t.visited = make(map[string]bool)
+
+	t.S += "<ul>"
 	t.constructHtmlList(node)
-	t.s += "</ul>"
+	t.S += "</ul>"
 }
 
 // Constructs Html unordered list from a map of relations.
 // node parameter specifies the root element for the list construction.
 func (t *Tree) constructHtmlList(node string) {
-	t.s += "<li>" + node
+	t.S += "<li>" + node
 
-	if _, ok := t.relations[node]; ok && len(t.relations[node]) > 0 {
+	_, isVisited := t.visited[node]
+	if _, ok := t.Relations[node]; ok && len(t.Relations[node]) > 0 && !isVisited {
 		// there are children
-		t.s += "<ul>"
-		for _, link := range t.relations[node] {
+
+		t.visited[node] = true
+		t.S += "<ul>"
+
+		for _, link := range t.Relations[node] {
 			t.constructHtmlList(link)
 		}
-		t.s += "</ul>"
-		t.s += "</li>"
+		t.S += "</ul>"
+		t.S += "</li>"
 	} else {
-		t.s += "</li>"
+		t.S += "</li>"
 	}
 }

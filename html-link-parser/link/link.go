@@ -14,7 +14,7 @@ type Link struct {
 }
 
 // Unifies the format of an url to a path, relative to the root domain.
-// Removes any trailing forward slashes and maps from different urls, considered home urls to a common suffix.
+// Removes any trailing slashes and makes absolute urls relative to the root domain.
 // Example: http://www.example.com/about -> /about
 // See tests for other examples.
 func (l *Link) Normalize(rootDomain string) {

@@ -6,20 +6,19 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"path/filepath"
 
 	// Still learning the package system
 	// So the first part 'example.com/link-spider' is the module that I init-ed.
 	// and the part after that is the folder where the package I want to import is.
 	"example.com/link-spider/link"
 	"example.com/link-spider/queue"
+	"example.com/link-spider/treeformat"
 )
-
-var urlLinks map[string][]string
 
 func main() {
 	// 1. Get a root url from a flag
-	url := flag.String("url", "https://calhoun.io/", "the url which will be the root of the sitemap.")
+	url := flag.String("url", "http://localhost:8080", "root domain of the site")
+	index := flag.String("index", "/index.html", "the root of the sitemap")
 	flag.Parse()
 
 	if *url == "" {
@@ -35,9 +34,9 @@ func main() {
 	urlLinks := make(map[string][]string, 0)
 
 	// add the home page of the site to the queue
-	urlsQueue = queue.Enqueue[string](urlsQueue, "/")
-	
-	//until the queue is empty start a loop
+	urlsQueue = queue.Enqueue[string](urlsQueue, *index)
+
+	// until the queue is empty start a loop
 	for len(urlsQueue) > 0 {
 		currentUrl := queue.Top[string](urlsQueue)
 		urlsQueue = queue.Pop[string](urlsQueue)
@@ -50,11 +49,11 @@ func main() {
 		urlLinks[currentUrl] = make([]string, 0)
 
 		// The url is ready for a request
-		fullUrl := filepath.Join(rootUrl, currentUrl)
+		fullUrl := rootUrl + currentUrl
 		resp, err := http.Get(fullUrl)
 
 		if err != nil {
-			printErr("Could not GET page from " + currentUrl, err)
+			printErr("Could not GET page from "+currentUrl, err)
 			continue
 		}
 		defer resp.Body.Close()
@@ -67,55 +66,21 @@ func main() {
 			continue
 		}
 
-		// We do not need to process external links.
-		var sameDomainLinks []link.Link
-
-		for _, link := range links {
+		for i, link := range links {
 			if link.IsSameDomainLink(rootUrl) {
-				sameDomainLinks = append(sameDomainLinks, link)
+				links[i].Normalize(rootUrl)
+
+				urlsQueue = queue.Enqueue[string](urlsQueue, links[i].Href)
+
+				urlLinks[currentUrl] = append(urlLinks[currentUrl], links[i].Href)
 			}
 		}
-
-		// Visit the same domain links at the current page
-		for i := range sameDomainLinks {
-			sameDomainLinks[i].Normalize(rootUrl)
-
-			urlsQueue = queue.Enqueue[string](urlsQueue, sameDomainLinks[i].Href)
-
-			urlLinks[currentUrl] = append(urlLinks[currentUrl], sameDomainLinks[i].Href)
-		}
 	}
-	
-	var html string
-	constructHtmlList("/", &html)
-	fmt.Println(html)
+
+	htmlTree := treeformat.Tree{Relations: urlLinks}
+	htmlTree.ConstructHtmlList(*index)
+	fmt.Println(htmlTree.S)
 }
-
-type Page struct {
-	Url string
-	Children []*Page
-}
-
-// Operates on a package local variable 'urlLinks'
-// Improve this by wrapping this function in an object perhaps
-func constructHtmlList(url string, html *string) {
-	*html += "<ul>"
-	*html += "<li>" + url
-
-	if _, ok := urlLinks[url]; ok && len(urlLinks[url]) > 0 {
-		// there are children
-		for _, link := range urlLinks[url] {
-			constructHtmlList(link, html)
-			*html += "</ul>"
-		}
-	} else {
-		*html += "</li>"
-	}
-}
-
-// TODO: Look at the identifiers around your code and improve them.
-// TODO: Reduce abstractions to improve readability
-// Use 'internal' directory if we dont want to share an implementation with the outside world
 
 func printErr(msg string, err error) {
 	fmt.Fprintf(os.Stderr, "%s. Error: %s", msg, err)

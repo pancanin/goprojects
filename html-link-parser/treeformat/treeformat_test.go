@@ -8,7 +8,7 @@ import (
 func TestConstructHtmlList(t *testing.T) {
 	tests := map[string]struct {
 		input map[string][]string
-		want string
+		want  string
 	}{
 		"flat list": {
 			input: map[string][]string{
@@ -18,20 +18,28 @@ func TestConstructHtmlList(t *testing.T) {
 		},
 		"nested list": {
 			input: map[string][]string{
-				"/": {"/articles", "/blog", "/about"},
+				"/":      {"/articles", "/blog", "/about"},
 				"/about": {"/testimonials", "/pricing"},
+				"/blog": {"/golang", "/cpp", "/java"},
 			},
-			want: "<ul><li>/<ul><li>/articles</li><li>/blog</li><li>/about<ul><li>/testimonials</li><li>/pricing</li></ul></li></ul></li></ul>",
+			want: "<ul><li>/<ul><li>/articles</li><li>/blog<ul><li>/golang</li><li>/cpp</li><li>/java</li></ul></li><li>/about<ul><li>/testimonials</li><li>/pricing</li></ul></li></ul></li></ul>",
+		},
+		"cyclic references": {
+			input: map[string][]string{
+				"/": {"/about"},
+				"/about": {"/", "/blog"},
+			},
+			want: "<ul><li>/<ul><li>/about<ul><li>/</li><li>/blog</li></ul></li></ul></li></ul>",
 		},
 	}
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			tree := Tree{relations: tc.input}
+			tree := Tree{Relations: tc.input}
 			tree.ConstructHtmlList("/")
 
-			if !reflect.DeepEqual(tree.s, tc.want) {
-				t.Fatalf("expected:\n%v,\n got:\n%v\n", tc.want, tree.s)
+			if !reflect.DeepEqual(tree.S, tc.want) {
+				t.Fatalf("expected:\n%v,\n got:\n%v\n", tc.want, tree.S)
 			}
 		})
 	}
